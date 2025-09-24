@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  phone     String?
+  country   String?
+  role      UserRole @default(CLEANER)
+  password  String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  damageReports DamageReport[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+model DamageReport {
+  id              String       @id @default(cuid())
+  reportedById    String
+  propertyName    String
+  propertyAddress String?
+  damageDate      DateTime
+  checkoutDate    DateTime
+  status          DamageStatus @default(PENDING)
+  airbnbDeadline  DateTime
+  proofDeadline   DateTime
+  submittedToAirbnb Boolean   @default(false)
+  submittedAt     DateTime?
+  claimAmount     Decimal?     // Approved claim amount
+  guestName       String?      // Guest name for approved claims
+  confirmationCode String?     // Booking confirmation code
+  receivedAmount  Decimal?     // Actual amount received
+  approvedAt      DateTime?    // When it was approved
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  // Relations
+  reportedBy  User     @relation(fields: [reportedById], references: [id])
+  items       DamageItem[]
+  notifications Notification[]
+
+  @@map("damage_reports")
+}
+
+model DamageItem {
+  id             String     @id @default(cuid())
+  damageReportId String
+  itemName       String
+  damageType     DamageType
+  description    String?
+  repairCost     Decimal?   // Cost estimation for repair
+  repairTime     String?    // Estimated time for repair
+  replacementCost Decimal?  // Cost of replacement item
+  replacementLink String?   // URL for replacement item
+  createdAt      DateTime   @default(now())
+
+  // Relations
+  damageReport DamageReport @relation(fields: [damageReportId], references: [id], onDelete: Cascade)
+  images       DamageImage[]
+
+  @@map("damage_items")
+}
+
+model DamageImage {
+  id           String @id @default(cuid())
+  damageItemId String
+  imageUrl     String
+  publicId     String
+  description  String?
+  createdAt    DateTime @default(now())
+
+  // Relations
+  damageItem DamageItem @relation(fields: [damageItemId], references: [id], onDelete: Cascade)
+
+  @@map("damage_images")
+}
+
+model Notification {
+  id             String           @id @default(cuid())
+  userId         String
+  damageReportId String?
+  type           NotificationType
+  title          String
+  message        String
+  isRead         Boolean          @default(false)
+  scheduledFor   DateTime?
+  sentAt         DateTime?
+  createdAt      DateTime         @default(now())
+
+  // Relations
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  damageReport DamageReport? @relation(fields: [damageReportId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+enum UserRole {
+  CLEANER
+  CLAIM_TEAM
+  ADMIN
+}
+
+enum DamageType {
+  REPAIR
+  REPLACE
+}
+
+enum DamageStatus {
+  PENDING
+  APPROVED
+  IN_REVIEW
+  SUBMITTED_TO_AIRBNB
+  PROOF_REQUIRED
+  RESOLVED
+  CANCELLED
+}
+
+enum NotificationType {
+  NEW_DAMAGE_REPORT
+  DEADLINE_REMINDER
+  PROOF_DEADLINE_REMINDER
+  STATUS_UPDATE
+}
