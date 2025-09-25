@@ -16,7 +16,7 @@
     "postinstall": "npm run generate"
   },
   "prisma": {
-    "seed": "node backend/prisma/seed.js"
+    "seed": "node prisma/seed.js"
   },
   "dependencies": {
     "@prisma/client": "^5.6.0",
