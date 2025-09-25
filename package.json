@@ -8,7 +8,7 @@
     "server": "nodemon backend/server.js",
     "client": "cd frontend && npm start",
     "build": "cd backend && npx prisma generate",
-    "start": "cd backend && npx prisma migrate deploy && npx prisma db seed && node server.js",
+    "start": "cd backend && npx prisma migrate deploy && node server.js",
     "migrate": "cd backend && npx prisma migrate dev",
     "migrate:deploy": "cd backend && npx prisma migrate deploy",
     "generate": "cd backend && npx prisma generate",
@@ -16,7 +16,7 @@
     "postinstall": "npm run generate"
   },
   "prisma": {
-    "seed": "cd backend && node prisma/seed.js"
+    "seed": "node backend/prisma/seed.js"
   },
   "dependencies": {
     "@prisma/client": "^5.6.0",
