@@ -109,7 +109,7 @@ const notifyNewDamageReport = async (damageReportId) => {
     const emailHtml = `
       <h2>New Damage Report</h2>
       <p><strong>Property:</strong> ${damageReport.propertyName}</p>
-      <p><strong>Address:</strong> ${damageReport.property.address}</p>
+      <p><strong>Address:</strong> ${damageReport.propertyAddress || 'N/A'}</p>
       <p><strong>Item Damaged:</strong> ${(damageReport.items?.[0]?.itemName || 'Multiple items')}</p>
       <p><strong>Damage Type:</strong> ${damageReport.damageType}</p>
       <p><strong>Reported By:</strong> ${damageReport.reportedBy.name}</p>
