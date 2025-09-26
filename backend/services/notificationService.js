@@ -5,16 +5,42 @@ const { subDays, isAfter, isBefore, addDays } = require('date-fns');
 
 const prisma = new PrismaClient();
 
-// Email transporter
-const emailTransporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST,
-  port: process.env.EMAIL_PORT,
-  secure: false,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
+// Email transporter with better configuration and fallback
+const createEmailTransporter = () => {
+  // If no email config, return null
+  if (!process.env.EMAIL_USER) {
+    return null;
   }
-});
+
+  // Gmail SMTP configuration (most reliable)
+  if (process.env.EMAIL_USER.includes('gmail.com')) {
+    return nodemailer.createTransporter({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+      },
+      timeout: 10000 // 10 second timeout
+    });
+  }
+
+  // Generic SMTP configuration
+  return nodemailer.createTransporter({
+    host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+    port: process.env.EMAIL_PORT || 587,
+    secure: false,
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS
+    },
+    timeout: 10000, // 10 second timeout
+    connectionTimeout: 10000,
+    greetingTimeout: 5000,
+    socketTimeout: 10000
+  });
+};
+
+const emailTransporter = createEmailTransporter();
 
 // Twilio client (optional - only initialize if proper credentials are provided)
 const twilioClient = process.env.TWILIO_ACCOUNT_SID &&
@@ -23,45 +49,69 @@ const twilioClient = process.env.TWILIO_ACCOUNT_SID &&
   ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
   : null;
 
-// Send email notification
+// Send email notification with timeout and async processing
 const sendEmail = async (to, subject, html) => {
-  try {
-    if (!process.env.EMAIL_USER) {
-      console.log('Email not configured, skipping email notification');
-      return;
-    }
-
-    await emailTransporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to,
-      subject,
-      html
-    });
-
-    console.log(`Email sent to ${to}: ${subject}`);
-  } catch (error) {
-    console.error('Error sending email:', error);
+  // Return immediately if email not configured - don't block API responses
+  if (!emailTransporter || !process.env.EMAIL_USER) {
+    console.log('Email not configured, skipping email notification');
+    return Promise.resolve();
   }
+
+  // Process email asynchronously without blocking
+  setImmediate(async () => {
+    try {
+      // Add 10 second timeout to prevent hanging
+      const emailPromise = emailTransporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to,
+        subject,
+        html
+      });
+
+      await Promise.race([
+        emailPromise,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Email timeout after 10 seconds')), 10000)
+        )
+      ]);
+
+      console.log(`Email sent to ${to}: ${subject}`);
+    } catch (error) {
+      console.error('Error sending email:', error);
+      // Don't throw error - just log it to prevent API blocking
+    }
+  });
+
+  // Return immediately so API responses aren't delayed
+  return Promise.resolve();
 };
 
-// Send SMS notification
+// Send SMS notification with async processing
 const sendSMS = async (to, message) => {
-  try {
-    if (!twilioClient || !process.env.TWILIO_PHONE_NUMBER) {
-      console.log('SMS not configured, skipping SMS notification');
-      return;
-    }
-
-    await twilioClient.messages.create({
-      body: message,
-      from: process.env.TWILIO_PHONE_NUMBER,
-      to
-    });
-
-    console.log(`SMS sent to ${to}: ${message}`);
-  } catch (error) {
-    console.error('Error sending SMS:', error);
+  // Return immediately if SMS not configured
+  if (!twilioClient || !process.env.TWILIO_PHONE_NUMBER) {
+    console.log('SMS not configured, skipping SMS notification');
+    return Promise.resolve();
   }
+
+  // Process SMS asynchronously without blocking
+  setImmediate(async () => {
+    try {
+      await twilioClient.messages.create({
+        body: message,
+        from: process.env.TWILIO_PHONE_NUMBER,
+        to
+      });
+
+      console.log(`SMS sent to ${to}: ${message}`);
+    } catch (error) {
+      console.error('Error sending SMS:', error);
+      // Don't throw error - just log it
+    }
+  });
+
+  // Return immediately so API responses aren't delayed
+  return Promise.resolve();
 };
 
 // Create notification in database
